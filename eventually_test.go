@@ -24,6 +24,26 @@ func (t *test) FailNow() {
 	t.halted = true
 }
 
+func (t *test) Fatal(args ...interface{}) {
+	t.Log(args...)
+	t.FailNow()
+}
+
+func (t *test) Fatalf(format string, args ...interface{}) {
+	t.Logf(format, args...)
+	t.FailNow()
+}
+
+func (t *test) Error(args ...interface{}) {
+	t.Log(args...)
+	t.Fail()
+}
+
+func (t *test) Errorf(format string, args ...interface{}) {
+	t.Logf(format, args...)
+	t.Fail()
+}
+
 func (t *test) Log(args ...any) {
 	t.logs = append(t.logs, fmt.Sprintln(args...))
 }
@@ -91,8 +111,8 @@ func TestMust(t *testing.T) {
 			t.Fatalf("logs should contain 1 line, contained %d", len(tt.logs))
 		}
 
-		if tt.logs[0] != "log" {
-			t.Errorf("logs should contain 'log', contained %s", tt.logs[0])
+		if tt.logs[0] != "log\n" {
+			t.Errorf("logs should contain 'log', contained %q", tt.logs[0])
 		}
 	})
 }
@@ -156,8 +176,8 @@ func TestShould(t *testing.T) {
 			t.Fatalf("logs should contain 1 line, contained %d", len(tt.logs))
 		}
 
-		if tt.logs[0] != "log" {
-			t.Errorf("logs should contain 'log', contained %s", tt.logs[0])
+		if tt.logs[0] != "log\n" {
+			t.Errorf("logs should contain 'log', contained %q", tt.logs[0])
 		}
 	})
 }

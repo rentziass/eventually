@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+type failNowPanic struct{}
+
 type retryableT struct {
 	testing.TB
 
@@ -16,25 +18,28 @@ type retryableT struct {
 }
 
 func (r *retryableT) Cleanup(func()) {
-	// keep track of fuctions to run at the end of the current attempt
+	// TODO: keep track of fuctions to run at the end of the current attempt
 }
 
+// TODO: should honor Skips too
+
 func (r *retryableT) Error(args ...any) {
-	// write to ttb.Log
-	// set r failed to true
+	r.Log(args...)
+	r.Fail()
 }
 
 func (r *retryableT) Errorf(format string, args ...any) {
-	// write to ttb.Logf
-	// set r failed to true
+	r.Logf(format, args...)
+	r.Fail()
 }
 
 func (r *retryableT) Fail() {
-	// set r failed to true
+	r.failed = true
 }
 
 func (r *retryableT) FailNow() {
-	// panic with a special error type
+	r.failed = true
+	panic(failNowPanic{})
 }
 
 func (r *retryableT) Failed() bool {
@@ -42,13 +47,13 @@ func (r *retryableT) Failed() bool {
 }
 
 func (r *retryableT) Fatal(args ...any) {
-	// write to ttb.Log
-	// panic with a special error type
+	r.Log(args...)
+	r.FailNow()
 }
 
 func (r *retryableT) Fatalf(format string, args ...any) {
-	// write to ttb.Logf
-	// panic with a special error type
+	r.Logf(format, args...)
+	r.FailNow()
 }
 
 type Option func(*retryableT)
@@ -72,7 +77,63 @@ func WithMaxAttempts(attempts int) Option {
 }
 
 func Must(t testing.TB, f func(t testing.TB), options ...Option) {
+	keepTrying(t, f, t.Fatalf, options...)
 }
 
 func Should(t testing.TB, f func(t testing.TB), options ...Option) {
+	keepTrying(t, f, t.Errorf, options...)
+}
+
+func keepTrying(t testing.TB, f func(t testing.TB), failf func(format string, args ...any), options ...Option) {
+	retryable := &retryableT{
+		TB: t,
+	}
+
+	for _, option := range options {
+		option(retryable)
+	}
+
+	start := time.Now()
+	attempts := 0
+
+	for {
+		if attempts >= retryable.maxAttempts && retryable.maxAttempts > 0 {
+			// max attempts reached
+			failf("eventually: max attempts reached")
+			return
+		}
+		attempts++
+
+		retryable.run(f)
+
+		// test passed
+		if !retryable.failed {
+			break
+		}
+
+		if time.Since(start) >= retryable.timeout && retryable.timeout > 0 {
+			// timeout reached
+			failf("eventually: timeout reached")
+			return
+		}
+
+		// test failed, wait for interval
+		time.Sleep(retryable.interval)
+	}
+}
+
+func (r *retryableT) run(f func(t testing.TB)) {
+	r.failed = false
+
+	defer func() {
+		if err := recover(); err != nil {
+			if _, ok := err.(failNowPanic); ok {
+				return
+			}
+
+			panic(err)
+		}
+	}()
+
+	f(r)
 }
