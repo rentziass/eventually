@@ -1,55 +1,169 @@
 package eventually_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/rentziass/eventually"
 )
 
-type test struct {
-	*testing.T
-	logs   []string
-	failed bool
-	halted bool
+func TestEventually_Must(t *testing.T) {
+	t.Run("eventually succeeding", func(t *testing.T) {
+		tt := &test{T: t}
+
+		succeed := false
+
+		e := eventually.New()
+		e.Must(tt, func(t testing.TB) {
+			if !succeed {
+				t.Fail()
+				succeed = true
+			}
+		})
+
+		if tt.failed || tt.halted {
+			t.Error("test failed")
+		}
+	})
+
+	t.Run("eventually failing", func(t *testing.T) {
+		tt := &test{T: t}
+
+		e := eventually.New(
+			eventually.WithMaxAttempts(3),
+			eventually.WithInterval(0),
+		)
+		e.Must(tt, func(t testing.TB) {
+			t.Fail()
+		})
+
+		if !tt.failed {
+			t.Error("test succeeded")
+		}
+
+		if !tt.halted {
+			t.Error("test did not halt")
+		}
+	})
+
+	t.Run("logs", func(t *testing.T) {
+		tt := &test{T: t}
+
+		e := eventually.New(eventually.WithMaxAttempts(1))
+		e.Must(tt, func(t testing.TB) {
+			t.Log("hello")
+			t.Log("world")
+		})
+
+		if len(tt.logs) != 2 {
+			t.Fatalf("logs should contain 2 line, contained %d", len(tt.logs))
+		}
+
+		if tt.logs[0] != "hello\n" {
+			t.Error("unexpected log")
+		}
+
+		if tt.logs[1] != "world\n" {
+			t.Error("unexpected log")
+		}
+	})
 }
 
-func (t *test) Fail() {
-	t.failed = true
-}
+func TestEventually_Should(t *testing.T) {
+	t.Run("eventually succeeding", func(t *testing.T) {
+		tt := &test{T: t}
 
-func (t *test) FailNow() {
-	t.failed = true
-	t.halted = true
-}
+		succeed := false
 
-func (t *test) Fatal(args ...interface{}) {
-	t.Log(args...)
-	t.FailNow()
-}
+		e := eventually.New()
+		e.Should(tt, func(t testing.TB) {
+			if !succeed {
+				t.Fail()
+				succeed = true
+			}
+		})
 
-func (t *test) Fatalf(format string, args ...interface{}) {
-	t.Logf(format, args...)
-	t.FailNow()
-}
+		if tt.failed || tt.halted {
+			t.Error("test failed")
+		}
+	})
 
-func (t *test) Error(args ...interface{}) {
-	t.Log(args...)
-	t.Fail()
-}
+	t.Run("eventually failing", func(t *testing.T) {
+		tt := &test{T: t}
 
-func (t *test) Errorf(format string, args ...interface{}) {
-	t.Logf(format, args...)
-	t.Fail()
-}
+		e := eventually.New(
+			eventually.WithMaxAttempts(3),
+			eventually.WithInterval(0),
+		)
+		e.Should(tt, func(t testing.TB) {
+			t.Fail()
+		})
 
-func (t *test) Log(args ...any) {
-	t.logs = append(t.logs, fmt.Sprintln(args...))
-}
+		if !tt.failed {
+			t.Error("test succeeded")
+		}
 
-func (t *test) Logf(format string, args ...any) {
-	t.logs = append(t.logs, fmt.Sprintf(format, args...))
+		if tt.halted {
+			t.Error("test halted")
+		}
+	})
+
+	t.Run("logs", func(t *testing.T) {
+		tt := &test{T: t}
+
+		e := eventually.New(eventually.WithMaxAttempts(1))
+		e.Should(tt, func(t testing.TB) {
+			t.Log("hello")
+			t.Log("world")
+		})
+
+		if len(tt.logs) != 2 {
+			t.Fatalf("logs should contain 2 line, contained %d", len(tt.logs))
+		}
+
+		if tt.logs[0] != "hello\n" {
+			t.Error("unexpected log")
+		}
+
+		if tt.logs[1] != "world\n" {
+			t.Error("unexpected log")
+		}
+	})
+
+	t.Run("multiple uses", func(t *testing.T) {
+		tt := &test{T: t}
+
+		e := eventually.New(eventually.WithMaxAttempts(3), eventually.WithInterval(0))
+
+		succeed := false
+		e.Should(tt, func(t testing.TB) {
+			if !succeed {
+				t.Fail()
+				t.Log("should")
+				succeed = true
+			}
+		})
+
+		e.Must(tt, func(t testing.TB) {
+			t.Log("must")
+		})
+
+		if tt.failed || tt.halted {
+			t.Error("test failed")
+		}
+
+		if len(tt.logs) != 2 {
+			t.Fatalf("logs should contain 2 line, contained %d", len(tt.logs))
+		}
+
+		if tt.logs[0] != "should\n" {
+			t.Error("unexpected log")
+		}
+
+		if tt.logs[1] != "must\n" {
+			t.Error("unexpected log")
+		}
+	})
 }
 
 func TestMust(t *testing.T) {

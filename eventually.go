@@ -5,6 +5,49 @@ import (
 	"time"
 )
 
+type Eventually struct {
+	timeout     time.Duration
+	interval    time.Duration
+	maxAttempts int
+}
+
+func New(options ...Option) *Eventually {
+	e := &Eventually{
+		timeout:     10 * time.Second,
+		interval:    100 * time.Millisecond,
+		maxAttempts: 0,
+	}
+
+	for _, option := range options {
+		option(e)
+	}
+
+	return e
+}
+
+func (e *Eventually) Must(t testing.TB, f func(t testing.TB)) {
+	t.Helper()
+
+	r := e.retryableT(t)
+	keepTrying(t, r, f, t.Fatalf)
+}
+
+func (e *Eventually) Should(t testing.TB, f func(t testing.TB)) {
+	t.Helper()
+
+	r := e.retryableT(t)
+	keepTrying(t, r, f, t.Errorf)
+}
+
+func (e *Eventually) retryableT(t testing.TB) *retryableT {
+	return &retryableT{
+		TB:          t,
+		timeout:     e.timeout,
+		interval:    e.interval,
+		maxAttempts: e.maxAttempts,
+	}
+}
+
 type failNowPanic struct{}
 
 type retryableT struct {
@@ -56,45 +99,42 @@ func (r *retryableT) Fatalf(format string, args ...any) {
 	r.FailNow()
 }
 
-type Option func(*retryableT)
+type Option func(*Eventually)
 
 func WithTimeout(timeout time.Duration) Option {
-	return func(r *retryableT) {
-		r.timeout = timeout
+	return func(e *Eventually) {
+		e.timeout = timeout
 	}
 }
 
 func WithInterval(interval time.Duration) Option {
-	return func(r *retryableT) {
-		r.interval = interval
+	return func(e *Eventually) {
+		e.interval = interval
 	}
 }
 
 func WithMaxAttempts(attempts int) Option {
-	return func(r *retryableT) {
-		r.maxAttempts = attempts
+	return func(e *Eventually) {
+		e.maxAttempts = attempts
 	}
 }
 
 func Must(t testing.TB, f func(t testing.TB), options ...Option) {
 	t.Helper()
-	keepTrying(t, f, t.Fatalf, options...)
+
+	e := New(options...)
+	e.Must(t, f)
 }
 
 func Should(t testing.TB, f func(t testing.TB), options ...Option) {
 	t.Helper()
-	keepTrying(t, f, t.Errorf, options...)
+
+	e := New(options...)
+	e.Should(t, f)
 }
 
-func keepTrying(t testing.TB, f func(t testing.TB), failf func(format string, args ...any), options ...Option) {
+func keepTrying(t testing.TB, retryable *retryableT, f func(t testing.TB), failf func(format string, args ...any)) {
 	t.Helper()
-	retryable := &retryableT{
-		TB: t,
-	}
-
-	for _, option := range options {
-		option(retryable)
-	}
 
 	start := time.Now()
 	attempts := 0
