@@ -11,6 +11,18 @@ type Eventually struct {
 	maxAttempts int
 }
 
+// New creates a new Eventually with the given options. This can be useful if you want to reuse the same
+// configuration for multiple functions. For example:
+//
+//	e := eventually.New(eventually.WithMaxAttempts(10))
+//
+// The returned Eventually has the following defaults unless otherwise specified:
+//
+//	Timeout:     10 seconds
+//	Interval:    100 milliseconds
+//	MaxAttempts: 0 (unlimited)
+//
+// If you don't need to reuse the same configuration, you can use the [Must] and [Should] functions directly.
 func New(options ...Option) *Eventually {
 	e := &Eventually{
 		timeout:     10 * time.Second,
@@ -25,6 +37,13 @@ func New(options ...Option) *Eventually {
 	return e
 }
 
+// Must will keep retrying the given function f until the testing.TB passed to
+// it does not fail or one of the following conditions is met:
+//
+//   - the timeout is reached
+//   - the maximum number of attempts is reached
+//
+// If f does not succed, Must will halt the test calling t.Fatalf.
 func (e *Eventually) Must(t testing.TB, f func(t testing.TB)) {
 	t.Helper()
 
@@ -32,6 +51,13 @@ func (e *Eventually) Must(t testing.TB, f func(t testing.TB)) {
 	keepTrying(t, r, f, t.Fatalf)
 }
 
+// Should will keep retrying the given function f until the testing.TB passed to
+// it does not fail or one of the following conditions is met:
+//
+//   - the timeout is reached
+//   - the maximum number of attempts is reached
+//
+// If f does not succed, Should will fail the test calling t.Errorf.
 func (e *Eventually) Should(t testing.TB, f func(t testing.TB)) {
 	t.Helper()
 
@@ -46,6 +72,60 @@ func (e *Eventually) retryableT(t testing.TB) *retryableT {
 		interval:    e.interval,
 		maxAttempts: e.maxAttempts,
 	}
+}
+
+// Option is a function that can be used to configure an Eventually.
+type Option func(*Eventually)
+
+// WithTimeout sets the timeout for an Eventually.
+func WithTimeout(timeout time.Duration) Option {
+	return func(e *Eventually) {
+		e.timeout = timeout
+	}
+}
+
+// WithInterval sets the interval Eventually will wait between attempts.
+func WithInterval(interval time.Duration) Option {
+	return func(e *Eventually) {
+		e.interval = interval
+	}
+}
+
+// WithMaxAttempts sets the maximum number of attempts an Eventually will make.
+func WithMaxAttempts(attempts int) Option {
+	return func(e *Eventually) {
+		e.maxAttempts = attempts
+	}
+}
+
+// Must will keep retrying the given function f until the testing.TB passed to
+// it does not fail or one of the following conditions is met:
+//
+//   - the timeout is reached
+//   - the maximum number of attempts is reached
+//
+// If f does not succed, Must will halt the test calling t.Fatalf.
+// Must behaviour can be changed by passing options to it.
+func Must(t testing.TB, f func(t testing.TB), options ...Option) {
+	t.Helper()
+
+	e := New(options...)
+	e.Must(t, f)
+}
+
+// Should will keep retrying the given function f until the testing.TB passed to
+// it does not fail or one of the following conditions is met:
+//
+//   - the timeout is reached
+//   - the maximum number of attempts is reached
+//
+// If f does not succed, Should will fail the test calling t.Errorf.
+// Should behaviour can be changed by passing options to it.
+func Should(t testing.TB, f func(t testing.TB), options ...Option) {
+	t.Helper()
+
+	e := New(options...)
+	e.Should(t, f)
 }
 
 type failNowPanic struct{}
@@ -97,40 +177,6 @@ func (r *retryableT) Fatalf(format string, args ...any) {
 	r.TB.Helper()
 	r.Logf(format, args...)
 	r.FailNow()
-}
-
-type Option func(*Eventually)
-
-func WithTimeout(timeout time.Duration) Option {
-	return func(e *Eventually) {
-		e.timeout = timeout
-	}
-}
-
-func WithInterval(interval time.Duration) Option {
-	return func(e *Eventually) {
-		e.interval = interval
-	}
-}
-
-func WithMaxAttempts(attempts int) Option {
-	return func(e *Eventually) {
-		e.maxAttempts = attempts
-	}
-}
-
-func Must(t testing.TB, f func(t testing.TB), options ...Option) {
-	t.Helper()
-
-	e := New(options...)
-	e.Must(t, f)
-}
-
-func Should(t testing.TB, f func(t testing.TB), options ...Option) {
-	t.Helper()
-
-	e := New(options...)
-	e.Should(t, f)
 }
 
 func keepTrying(t testing.TB, retryable *retryableT, f func(t testing.TB), failf func(format string, args ...any)) {
