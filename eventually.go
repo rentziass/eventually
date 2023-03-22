@@ -17,12 +17,6 @@ type retryableT struct {
 	maxAttempts int
 }
 
-func (r *retryableT) Cleanup(func()) {
-	// TODO: keep track of fuctions to run at the end of the current attempt
-}
-
-// TODO: should honor Skips too
-
 func (r *retryableT) Error(args ...any) {
 	r.TB.Helper()
 	r.Log(args...)

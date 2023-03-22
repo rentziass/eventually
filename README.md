@@ -15,6 +15,4 @@ eventually.Should(t, func(t testing.TB) {
 ```
 
 ## TODO
-- [ ] Support `Cleanup`
-- [ ] Support `Skip`?
 - [ ] Add documentation
