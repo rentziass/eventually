@@ -24,20 +24,24 @@ func (r *retryableT) Cleanup(func()) {
 // TODO: should honor Skips too
 
 func (r *retryableT) Error(args ...any) {
+	r.TB.Helper()
 	r.Log(args...)
 	r.Fail()
 }
 
 func (r *retryableT) Errorf(format string, args ...any) {
+	r.TB.Helper()
 	r.Logf(format, args...)
 	r.Fail()
 }
 
 func (r *retryableT) Fail() {
+	r.TB.Helper()
 	r.failed = true
 }
 
 func (r *retryableT) FailNow() {
+	r.TB.Helper()
 	r.failed = true
 	panic(failNowPanic{})
 }
@@ -47,11 +51,13 @@ func (r *retryableT) Failed() bool {
 }
 
 func (r *retryableT) Fatal(args ...any) {
+	r.TB.Helper()
 	r.Log(args...)
 	r.FailNow()
 }
 
 func (r *retryableT) Fatalf(format string, args ...any) {
+	r.TB.Helper()
 	r.Logf(format, args...)
 	r.FailNow()
 }
@@ -77,14 +83,17 @@ func WithMaxAttempts(attempts int) Option {
 }
 
 func Must(t testing.TB, f func(t testing.TB), options ...Option) {
+	t.Helper()
 	keepTrying(t, f, t.Fatalf, options...)
 }
 
 func Should(t testing.TB, f func(t testing.TB), options ...Option) {
+	t.Helper()
 	keepTrying(t, f, t.Errorf, options...)
 }
 
 func keepTrying(t testing.TB, f func(t testing.TB), failf func(format string, args ...any), options ...Option) {
+	t.Helper()
 	retryable := &retryableT{
 		TB: t,
 	}
