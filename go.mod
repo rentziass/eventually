@@ -1,3 +1,3 @@
 module github.com/rentziass/eventually
 
-go 1.20
+go 1.21
