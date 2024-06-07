@@ -40,7 +40,7 @@ eventually.Should(t, func(t testing.TB) {
 
 ```
 
-Eventually has [`Should`](https://pkg.go.dev/github.com/rentziass/eventually#Should) and [`Must`](https://pkg.go.dev/github.com/rentziass/eventually#Must) functions, that 
+Eventually has [`Should`](https://pkg.go.dev/github.com/rentziass/eventually#Should) and [`Must`](https://pkg.go.dev/github.com/rentziass/eventually#Must) functions, that
 correspond to [`Fail`](https://pkg.go.dev/testing#T.Fail) and [`FailNow`](https://pkg.go.dev/testing#T.FailNow) respectively in case of failure.
 
 Behaviour can be customised with use of [`Options`](https://pkg.go.dev/github.com/rentziass/eventually#Option), for example:
@@ -79,7 +79,7 @@ eventually.Must(t, func(t testing.TB) {
 
 Other testing libraries have solutions for this. Testify for instance has its own [`Eventually`](https://pkg.go.dev/github.com/stretchr/testify@v1.8.2/assert#Eventually), but
 the function it takes returns a `bool` and has no access to an "inner" `*testing.T` to be used for helpers and assertions.
-Let's say for example that you have a helper function that reads a file and returns its content as a string, failing the test if 
+Let's say for example that you have a helper function that reads a file and returns its content as a string, failing the test if
 it can't find the file (more convenient than handling all errors in the test itself). If the file you want to test is being
 created asynchronously using that helper within Eventually will halt the whole test instead of trying executing again. In Go code:
 
@@ -100,6 +100,23 @@ func readFile(t *testing.T, path string) string {
   // reading the file
 }
 ```
+
+With the addition of [`assert.EventuallyWithT`](https://pkg.go.dev/github.com/stretchr/testify/assert#EventuallyWithT)
+it would seem that our problem is solved, but the issue with that is that the
+[`*CollectT`](https://pkg.go.dev/github.com/stretchr/testify/assert#CollectT)
+available to the function [panics on FailNow](https://pkg.go.dev/github.com/stretchr/testify/assert#CollectT.FailNow) (which is what `t.FailNow` does). This means that if you have anything using `FailNow` (including using testify's own `require`) this will panic and halt the whole test, not just the `EventuallyWithT` block:
+
+```go
+func TestAsyncFile(t *testing.T) {
+  // setup
+
+  assert.EventuallyWithT(t, func(t *assert.Assertions) {
+    f, err := os.Open(path)
+    require.NoError(t, err) // <-- this would panic and halt the whole test
+
+    // your test code here
+  })
+}
 
 Another available alternative is Gomega's [`Eventually`](https://pkg.go.dev/github.com/onsi/gomega#Eventually) (yes, this package has a very original name), which can be very convenient to use but requires buying into Gomega as a whole, which is quite the commitment (and I don't find a particularly idiomatic way of writing tests in Go but hey, opinions). This also still doesn't give access to a `t` with its own scope, you can do assertions within the `Eventually` block but if you have code that relies on `*testing.T` being around you cannot use it:
 
